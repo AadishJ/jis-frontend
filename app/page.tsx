@@ -2,19 +2,47 @@
 
 import { getUser } from "@/lib/auth";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export default function Home() {
-  const user = getUser();
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [role, setRole] = useState<string | null>(null);
 
-  if (!user) {
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadUser = async () => {
+      const user = await getUser();
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (!user) {
+        router.replace("/login");
+      } else {
+        setRole(user.role);
+      }
+
+      setLoading(false);
+    };
+
+    void loadUser();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
+
+  if (loading || !role) {
     return (
       <div className="flex items-center justify-center h-full">
         <p className="text-gray-500">Redirecting...</p>
       </div>
     );
   }
-
-  const role = user.role;
 
   return (
     <div className="space-y-6">

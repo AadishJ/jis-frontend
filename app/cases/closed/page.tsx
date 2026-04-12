@@ -2,16 +2,14 @@
 
 import { useState } from "react";
 import { API } from "@/lib/api";
+import type { Case } from "@/types/case";
 
 export default function ClosedCases() {
   const [cin, setCin] = useState("");
-  const [data, setData] = useState<any>();
+  const [data, setData] = useState<Case | null>(null);
 
   const access = async () => {
-    const userId = localStorage.getItem("userId");
-
     const res = await API.post("/cases/access", {
-      userId: Number(userId),
       cin,
     });
 
@@ -28,7 +26,10 @@ export default function ClosedCases() {
         onChange={(e) => setCin(e.target.value)}
       />
 
-      <button onClick={access} className="bg-blue-600 text-white px-4 py-2 rounded">
+      <button
+        onClick={access}
+        className="bg-blue-600 text-white px-4 py-2 rounded"
+      >
         Access
       </button>
 

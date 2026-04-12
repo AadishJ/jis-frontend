@@ -3,10 +3,11 @@
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { API } from "@/lib/api";
+import type { Case } from "@/types/case";
 
 export default function CasePage() {
   const { cin } = useParams<{ cin: string }>();
-  const [data, setData] = useState<any>();
+  const [data, setData] = useState<Case | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

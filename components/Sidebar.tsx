@@ -3,16 +3,34 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { getUser, logout } from "@/lib/auth";
-import { Home, FileText, Plus, Archive } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const user = getUser();
+  const [role, setRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadUser = async () => {
+      const user = await getUser();
+
+      if (!isMounted) {
+        return;
+      }
+
+      setRole(user?.role ?? null);
+    };
+
+    void loadUser();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [pathname]);
 
   // 🚨 Hide sidebar if not logged in
-  if (!user) return null;
-
-  const role = user.role;
+  if (!role) return null;
 
   const nav = [
     { href: "/", label: "Dashboard", roles: ["REGISTRAR", "JUDGE", "LAWYER"] },
@@ -39,7 +57,10 @@ export default function Sidebar() {
         {nav
           .filter((item) => item.roles.includes(role))
           .map((item) => {
-            const active = pathname.startsWith(item.href);
+            const active =
+              item.href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(item.href);
 
             return (
               <Link
@@ -57,7 +78,7 @@ export default function Sidebar() {
 
       <div className="p-4 border-t">
         <button
-          onClick={logout}
+          onClick={() => void logout()}
           className="w-full text-left text-red-600 px-3 py-2 hover:bg-red-50 rounded-lg"
         >
           Logout

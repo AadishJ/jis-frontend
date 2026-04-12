@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { API } from "@/lib/api";
 import Link from "next/link";
 import { Eye } from "lucide-react";
+import type { Case } from "@/types/case";
 
 export default function PendingCases() {
-  const [cases, setCases] = useState<any[]>([]);
+  const [cases, setCases] = useState<Case[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

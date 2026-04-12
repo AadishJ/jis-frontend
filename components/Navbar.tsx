@@ -1,14 +1,11 @@
 "use client";
 
+import { logout } from "@/lib/auth";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 export default function Navbar() {
-  const router = useRouter();
-
-  const logout = () => {
-    localStorage.clear();
-    router.push("/login");
+  const handleLogout = () => {
+    void logout();
   };
 
   return (
@@ -21,7 +18,7 @@ export default function Navbar() {
           <Link href="/cases/create">Create</Link>
           <Link href="/cases/closed">Closed</Link>
 
-          <button onClick={logout} className="text-red-600">
+          <button onClick={handleLogout} className="text-red-600">
             Logout
           </button>
         </div>

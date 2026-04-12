@@ -1,20 +1,32 @@
 "use client";
 
+import { login } from "@/lib/auth";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function Login() {
   const [userId, setUserId] = useState("");
-  const [role, setRole] = useState("REGISTRAR");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const login = () => {
-    if (!userId) return alert("Enter userId");
+  const handleLogin = async () => {
+    if (!userId || !password) {
+      setError("Enter both user ID and password");
+      return;
+    }
 
-    localStorage.setItem("userId", userId);
-    localStorage.setItem("role", role);
-
-    router.push("/");
+    try {
+      setLoading(true);
+      setError("");
+      await login(Number(userId), password);
+      router.replace("/");
+    } catch {
+      setError("Invalid user ID or password");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -25,23 +37,27 @@ export default function Login() {
         <input
           className="w-full border p-2 rounded"
           placeholder="User ID"
+          type="number"
+          value={userId}
           onChange={(e) => setUserId(e.target.value)}
         />
 
-        <select
+        <input
           className="w-full border p-2 rounded"
-          onChange={(e) => setRole(e.target.value)}
-        >
-          <option value="REGISTRAR">Registrar</option>
-          <option value="JUDGE">Judge</option>
-          <option value="LAWYER">Lawyer</option>
-        </select>
+          placeholder="Password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
 
         <button
-          onClick={login}
-          className="bg-blue-600 text-white w-full py-2 rounded"
+          onClick={handleLogin}
+          disabled={loading}
+          className="bg-blue-600 text-white w-full py-2 rounded disabled:opacity-60"
         >
-          Login
+          {loading ? "Logging in..." : "Login"}
         </button>
       </div>
     </div>

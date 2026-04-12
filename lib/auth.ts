@@ -1,15 +1,35 @@
-export function getUser() {
-  if (typeof window === "undefined") return null;
+import { API } from "@/lib/api";
 
-  const userId = localStorage.getItem("userId");
-  const role = localStorage.getItem("role");
+export type AuthUser = {
+  userId: number;
+  name: string;
+  role: "REGISTRAR" | "JUDGE" | "LAWYER" | "ADMIN";
+};
 
-  if (!userId || !role) return null;
+export async function login(userId: number, password: string) {
+  const response = await API.post<AuthUser>("/auth/login", {
+    userId,
+    password,
+  });
 
-  return { userId, role };
+  return response.data;
 }
 
-export function logout() {
-  localStorage.clear();
-  window.location.href = "/login";
+export async function getUser() {
+  try {
+    const response = await API.get<AuthUser>("/auth/me");
+    return response.data;
+  } catch {
+    return null;
+  }
+}
+
+export async function logout() {
+  try {
+    await API.post("/auth/logout");
+  } finally {
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
+  }
 }

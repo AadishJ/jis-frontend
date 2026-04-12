@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { getUser, logout } from "@/lib/auth";
 import { useEffect, useState } from "react";
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
@@ -29,7 +30,29 @@ export default function Sidebar() {
     };
   }, [pathname]);
 
-  // 🚨 Hide sidebar if not logged in
+  useEffect(() => {
+    if (!role) {
+      return;
+    }
+
+    const restrictedRoutes = [
+      { prefix: "/cases/create", roles: ["REGISTRAR"] },
+      { prefix: "/cases/pending", roles: ["REGISTRAR"] },
+      { prefix: "/cases/hearings", roles: ["REGISTRAR"] },
+      { prefix: "/cases/resolved", roles: ["REGISTRAR"] },
+      { prefix: "/cases/closed", roles: ["JUDGE", "LAWYER"] },
+    ];
+
+    const blockedRoute = restrictedRoutes.find(
+      (route) =>
+        pathname.startsWith(route.prefix) && !route.roles.includes(role),
+    );
+
+    if (blockedRoute) {
+      router.replace("/");
+    }
+  }, [pathname, role, router]);
+
   if (!role) return null;
 
   const nav = [
@@ -38,6 +61,24 @@ export default function Sidebar() {
     { href: "/cases/pending", label: "Pending Cases", roles: ["REGISTRAR"] },
 
     { href: "/cases/create", label: "Create Case", roles: ["REGISTRAR"] },
+
+    {
+      href: "/cases/hearings",
+      label: "Hearings By Date",
+      roles: ["REGISTRAR"],
+    },
+
+    {
+      href: "/cases/search",
+      label: "Search By CIN",
+      roles: ["REGISTRAR", "JUDGE", "LAWYER"],
+    },
+
+    {
+      href: "/cases/resolved",
+      label: "Resolved By Period",
+      roles: ["REGISTRAR"],
+    },
 
     {
       href: "/cases/closed",

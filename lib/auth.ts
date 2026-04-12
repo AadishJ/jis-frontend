@@ -6,10 +6,17 @@ export type AuthUser = {
   role: "REGISTRAR" | "JUDGE" | "LAWYER" | "ADMIN";
 };
 
-export async function login(userId: number, password: string) {
+export type LoginPayload = {
+  password: string;
+  userId?: number;
+  name?: string;
+};
+
+export async function login(payload: LoginPayload) {
   const response = await API.post<AuthUser>("/auth/login", {
-    userId,
-    password,
+    userId: payload.userId,
+    name: payload.name,
+    password: payload.password,
   });
 
   return response.data;

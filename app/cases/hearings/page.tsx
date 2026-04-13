@@ -128,7 +128,7 @@ export default function HearingsByDatePage() {
       setNote(
         fallbackRows.length > 0
           ? "Loaded from available case metadata"
-          : "No hearing-list endpoint found in backend for this date",
+          : "No hearing-list found in backend for this date",
       );
     } catch (loadError) {
       setRows([]);

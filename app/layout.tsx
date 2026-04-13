@@ -49,7 +49,7 @@ export default function RootLayout({
 
   return (
     <html lang="en">
-      <body className="bg-gray-50">
+      <body suppressHydrationWarning className="bg-gray-50">
         {checkingAuth && !isLoginPage ? (
           <div className="flex h-screen items-center justify-center">
             <p className="text-gray-500">Checking session...</p>

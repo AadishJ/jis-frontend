@@ -1,36 +1,85 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# JIS Frontend
 
-## Getting Started
+Next.js 16 + React 19 frontend for the judicial information system.
 
-First, run the development server:
+## Prerequisites
+
+- Node.js 20.9+
+- pnpm 9+
+
+## Local Development
+
+1. Install dependencies:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Create a local env file:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+cp .env.example .env.local
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+3. Update required values in `.env.local`.
 
-## Learn More
+4. Start the app:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+pnpm dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+5. Open http://localhost:3000.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Environment Variables
+
+The canonical template is `.env.example`.
+
+Runtime variables used by the app:
+
+- `NEXT_PUBLIC_API_URL` (required): Base URL of your backend API (for example `https://api.example.com`).
+- `NEXT_PUBLIC_RAZORPAY_KEY_ID` (optional): Razorpay test key for lawyer closed-case payment flow.
+
+Test-only variables used by Selenium (not required for Vercel runtime):
+
+- `E2E_BASE_URL`
+- `E2E_REGISTRAR_USER_ID`
+- `E2E_JUDGE_USER_ID`
+- `E2E_PASSWORD`
+- `E2E_ELEMENT_TIMEOUT_MS`
+- `E2E_TEST_TIMEOUT_MS`
+- `E2E_DISABLE_WEB_SECURITY`
+- `SELENIUM_BROWSER`
+- `SELENIUM_REMOTE_URL`
+- `SELENIUM_HEADLESS`
 
 ## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+This repository includes `vercel.json` with deterministic commands:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Install command: `pnpm install --frozen-lockfile`
+- Build command: `pnpm build`
+
+Deploy steps:
+
+1. Push this repository to GitHub/GitLab/Bitbucket.
+2. Import the project in Vercel.
+3. Ensure framework preset is Next.js.
+4. In Vercel project settings, add environment variables:
+   - `NEXT_PUBLIC_API_URL` (required)
+   - `NEXT_PUBLIC_RAZORPAY_KEY_ID` (optional)
+5. Add those variables for Production and Preview (and Development if you use Vercel dev env sync).
+6. Deploy.
+
+Important:
+
+- Any variable prefixed with `NEXT_PUBLIC_` is exposed to the browser and baked into the build output for that deployment.
+- Do not commit `.env.local` or real secrets.
+
+## Useful Scripts
+
+- `pnpm dev`: Run local dev server
+- `pnpm build`: Build production output
+- `pnpm start`: Start production server locally
+- `pnpm lint`: Run ESLint
+- `pnpm test:selenium`: Run Selenium use case tests

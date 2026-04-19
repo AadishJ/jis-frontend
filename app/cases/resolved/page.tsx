@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { API, getApiErrorMessage } from "@/lib/api";
+import { API, getApiErrorMessage, getApiErrorStatus } from "@/lib/api";
 import type { Case } from "@/types/case";
 import { formatDateTime, parseCaseDisplayFields } from "@/lib/case-details";
 
@@ -13,6 +13,18 @@ type ResolvedRow = {
   judgmentSummary: string;
 };
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function asString(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
 function resolveJudgmentDate(caseItem: Case) {
   const candidates = [
     (caseItem as Case & { judgmentDate?: string }).judgmentDate,
@@ -23,12 +35,61 @@ function resolveJudgmentDate(caseItem: Case) {
   return candidates[0] ?? "";
 }
 
+function normalizeResolvedRow(value: unknown): ResolvedRow | null {
+  const row = asRecord(value);
+
+  if (!row) {
+    return null;
+  }
+
+  const cin = asString(row.cin).trim();
+
+  if (!cin) {
+    return null;
+  }
+
+  const looksLikeCaseEntity =
+    typeof row.defendantDetails === "string" ||
+    typeof row.prosecutorDetails === "string" ||
+    typeof row.status === "string";
+
+  if (looksLikeCaseEntity) {
+    const caseItem = row as unknown as Case;
+    const details = parseCaseDisplayFields(caseItem);
+
+    return {
+      cin,
+      startDate: details.trialStartDate || caseItem.createdAt || "-",
+      judgmentDate: resolveJudgmentDate(caseItem),
+      judge: details.presidingJudge || "-",
+      judgmentSummary: caseItem.judgmentSummary || "-",
+    };
+  }
+
+  return {
+    cin,
+    startDate:
+      asString(row.caseStartDate) ||
+      asString(row.startDate) ||
+      asString(row.createdAt) ||
+      "-",
+    judgmentDate: asString(row.judgmentDate),
+    judge: asString(row.attendingJudge) || asString(row.judge) || "-",
+    judgmentSummary: asString(row.judgmentSummary) || "-",
+  };
+}
+
 function inRange(value: string, startDate: string, endDate: string) {
   if (!value) {
     return false;
   }
 
   const normalized = value.slice(0, 10);
+
+  if (normalized.length !== 10) {
+    return false;
+  }
+
   return normalized >= startDate && normalized <= endDate;
 }
 
@@ -36,6 +97,7 @@ export default function ResolvedCasesPage() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [rows, setRows] = useState<ResolvedRow[]>([]);
+  const [hasSearched, setHasSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [source, setSource] = useState("");
@@ -51,9 +113,11 @@ export default function ResolvedCasesPage() {
       return;
     }
 
+    setHasSearched(true);
     setLoading(true);
     setError("");
     setSource("");
+    setRows([]);
 
     const endpointCandidates = [
       `/cases/resolved?from=${fromDate}&to=${toDate}`,
@@ -62,24 +126,15 @@ export default function ResolvedCasesPage() {
     ];
 
     try {
+      let lastProbeError: unknown = null;
+
       for (const endpoint of endpointCandidates) {
         try {
-          const response = await API.get<Case[]>(endpoint);
+          const response = await API.get(endpoint);
           const list = Array.isArray(response.data) ? response.data : [];
           const rowsFromEndpoint = list
-            .filter((caseItem) => caseItem.status === "CLOSED")
-            .map((caseItem) => {
-              const details = parseCaseDisplayFields(caseItem);
-              const judgmentDate = resolveJudgmentDate(caseItem);
-
-              return {
-                cin: caseItem.cin,
-                startDate: details.trialStartDate || caseItem.createdAt || "-",
-                judgmentDate,
-                judge: details.presidingJudge || "-",
-                judgmentSummary: caseItem.judgmentSummary || "-",
-              };
-            })
+            .map((item) => normalizeResolvedRow(item))
+            .filter((row): row is ResolvedRow => row !== null)
             .filter((row) => inRange(row.judgmentDate, fromDate, toDate))
             .sort((first, second) =>
               (first.judgmentDate || "").localeCompare(
@@ -89,15 +144,36 @@ export default function ResolvedCasesPage() {
 
           setRows(rowsFromEndpoint);
           setSource(endpoint);
-          setLoading(false);
           return;
-        } catch {
-          // Try next endpoint signature.
+        } catch (probeError) {
+          const status = getApiErrorStatus(probeError);
+
+          if (
+            status === 401 ||
+            status === 403 ||
+            (typeof status === "number" && status >= 500)
+          ) {
+            throw probeError;
+          }
+
+          lastProbeError = probeError;
         }
       }
 
       setRows([]);
-      setSource("No resolved-case endpoint found in backend");
+      setSource(
+        "No resolved-case endpoint found in backend for this date range",
+      );
+
+      if (lastProbeError) {
+        const probeMessage = getApiErrorMessage(lastProbeError, "");
+
+        if (probeMessage) {
+          setSource(
+            (current) => `${current}. Endpoint probe detail: ${probeMessage}`,
+          );
+        }
+      }
     } catch (searchError) {
       setRows([]);
       setError(
@@ -125,7 +201,10 @@ export default function ResolvedCasesPage() {
               type="date"
               className="w-full border rounded p-2"
               value={fromDate}
-              onChange={(event) => setFromDate(event.target.value)}
+              onChange={(event) => {
+                setFromDate(event.target.value);
+                setError("");
+              }}
             />
           </label>
 
@@ -135,7 +214,10 @@ export default function ResolvedCasesPage() {
               type="date"
               className="w-full border rounded p-2"
               value={toDate}
-              onChange={(event) => setToDate(event.target.value)}
+              onChange={(event) => {
+                setToDate(event.target.value);
+                setError("");
+              }}
             />
           </label>
         </div>
@@ -153,7 +235,11 @@ export default function ResolvedCasesPage() {
       </div>
 
       <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
-        {rows.length === 0 ? (
+        {!hasSearched ? (
+          <p className="p-4 text-sm text-gray-600">
+            Select a date range and click Search Resolved Cases.
+          </p>
+        ) : rows.length === 0 ? (
           <p className="p-4 text-sm text-gray-600">No resolved cases found.</p>
         ) : (
           <table className="w-full text-sm min-w-225">

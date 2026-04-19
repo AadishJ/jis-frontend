@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { API, getApiErrorMessage } from "@/lib/api";
 import type { Case } from "@/types/case";
-import { getUser } from "@/lib/auth";
+import { getUserSession } from "@/lib/auth";
 import { formatDateTime, parseCaseDisplayFields } from "@/lib/case-details";
 
 const LAWYER_ACCESS_FEE_INR = 499;
@@ -123,6 +123,8 @@ export default function ClosedCases() {
   const [role, setRole] = useState<string | null>(null);
   const [userId, setUserId] = useState<number | null>(null);
   const [checkingUser, setCheckingUser] = useState(true);
+  const [authError, setAuthError] = useState("");
+  const [authRetryCount, setAuthRetryCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -134,14 +136,23 @@ export default function ClosedCases() {
     let isMounted = true;
 
     const loadUser = async () => {
-      const user = await getUser();
+      const session = await getUserSession();
 
       if (!isMounted) {
         return;
       }
 
-      setRole(user?.role ?? null);
-      setUserId(user?.userId ?? null);
+      if (session.errorMessage) {
+        setAuthError(session.errorMessage);
+        setRole(null);
+        setUserId(null);
+        setCheckingUser(false);
+        return;
+      }
+
+      setAuthError("");
+      setRole(session.user?.role ?? null);
+      setUserId(session.user?.userId ?? null);
       setCheckingUser(false);
     };
 
@@ -150,7 +161,7 @@ export default function ClosedCases() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [authRetryCount]);
 
   const normalizedCin = cin.trim();
   const paymentDoneForCurrentCin =
@@ -282,6 +293,11 @@ export default function ClosedCases() {
       return;
     }
 
+    if (!role) {
+      setError("Unable to determine user role for access check");
+      return;
+    }
+
     if (role === "LAWYER" && !paymentDoneForCurrentCin) {
       setError("Complete Razorpay payment before accessing this case");
       setSuccess("");
@@ -317,6 +333,25 @@ export default function ClosedCases() {
 
   if (checkingUser) {
     return <p className="text-sm text-gray-600">Loading profile...</p>;
+  }
+
+  if (authError) {
+    return (
+      <div className="max-w-2xl rounded-xl border bg-white p-6 space-y-3">
+        <h1 className="text-xl font-semibold">Closed Cases</h1>
+        <p className="text-sm text-red-600">{authError}</p>
+
+        <button
+          onClick={() => {
+            setCheckingUser(true);
+            setAuthRetryCount((value) => value + 1);
+          }}
+          className="rounded bg-blue-600 px-4 py-2 text-white"
+        >
+          Retry Session Check
+        </button>
+      </div>
+    );
   }
 
   if (role !== "JUDGE" && role !== "LAWYER") {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { API, getApiErrorMessage } from "@/lib/api";
+import { API, getApiErrorMessage, getApiErrorStatus } from "@/lib/api";
 import type { Case } from "@/types/case";
 import { parseCaseDisplayFields } from "@/lib/case-details";
 
@@ -13,19 +13,31 @@ export default function CaseSearchPage() {
   const [result, setResult] = useState<Case | null>(null);
 
   const search = async () => {
-    if (!cin.trim()) {
+    const normalizedCin = cin.trim();
+
+    if (!normalizedCin) {
       setError("Enter a CIN to search");
+      setResult(null);
       return;
     }
 
     try {
       setLoading(true);
       setError("");
-      const response = await API.get<Case>(`/cases/${cin.trim()}`);
+      const response = await API.get<Case>(`/cases/${normalizedCin}`);
       setResult(response.data);
     } catch (searchError) {
+      const statusCode = getApiErrorStatus(searchError);
+
       setResult(null);
-      setError(getApiErrorMessage(searchError, "Case not found for this CIN"));
+
+      if (statusCode === 404) {
+        setError(`No case found for CIN ${normalizedCin}.`);
+      } else {
+        setError(
+          getApiErrorMessage(searchError, "Unable to search for this CIN"),
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -45,7 +57,10 @@ export default function CaseSearchPage() {
           className="w-full border rounded p-2"
           placeholder="CIN (e.g. CIN-2026-xxxxxx)"
           value={cin}
-          onChange={(event) => setCin(event.target.value)}
+          onChange={(event) => {
+            setCin(event.target.value);
+            setError("");
+          }}
         />
 
         <button

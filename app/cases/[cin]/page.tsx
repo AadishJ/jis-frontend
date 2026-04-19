@@ -9,7 +9,7 @@ import {
   parseCaseDisplayFields,
   type CaseRegistrationForm,
 } from "@/lib/case-details";
-import { API, getApiErrorMessage } from "@/lib/api";
+import { API, getApiErrorMessage, getApiErrorStatus } from "@/lib/api";
 import type { Case, Hearing, UpdateCasePayload } from "@/types/case";
 
 const emptyEditForm: CaseRegistrationForm = {
@@ -29,6 +29,7 @@ const emptyEditForm: CaseRegistrationForm = {
 
 export default function CasePage() {
   const { cin } = useParams<{ cin: string }>();
+  const normalizedCin = (cin ?? "").trim();
   const [data, setData] = useState<Case | null>(null);
   const [editForm, setEditForm] = useState<CaseRegistrationForm>(emptyEditForm);
   const [hearingDate, setHearingDate] = useState("");
@@ -70,18 +71,32 @@ export default function CasePage() {
   };
 
   const loadCase = useCallback(async () => {
+    if (!normalizedCin) {
+      setError("Invalid case URL. Please open a valid CIN.");
+      setData(null);
+      setLoading(false);
+      return;
+    }
+
     try {
       setError("");
-      const response = await API.get<Case>(`/cases/${cin}`);
+      const response = await API.get<Case>(`/cases/${normalizedCin}`);
       setData(response.data);
       applyCaseToForm(response.data);
     } catch (fetchError) {
-      setError(getApiErrorMessage(fetchError, "Unable to load case"));
+      const statusCode = getApiErrorStatus(fetchError);
+
+      if (statusCode === 404) {
+        setError(`No case found for CIN ${normalizedCin}.`);
+      } else {
+        setError(getApiErrorMessage(fetchError, "Unable to load case"));
+      }
+
       setData(null);
     } finally {
       setLoading(false);
     }
-  }, [cin]);
+  }, [normalizedCin]);
 
   useEffect(() => {
     void loadCase();
@@ -92,11 +107,18 @@ export default function CasePage() {
   };
 
   const saveCaseEdits = async () => {
+    if (data?.status === "CLOSED") {
+      setSuccess("");
+      setError("Closed cases cannot be edited");
+      return;
+    }
+
     if (
       !editForm.defendantName ||
       !editForm.crimeType ||
       !editForm.publicProsecutor
     ) {
+      setSuccess("");
       setError(
         "Defendant, crime type, and prosecutor are required to update case",
       );
@@ -116,7 +138,10 @@ export default function CasePage() {
         prosecutorDetails: payload.prosecutorDetails,
       };
 
-      const response = await API.put<Case>(`/cases/${cin}`, updatePayload);
+      const response = await API.put<Case>(
+        `/cases/${normalizedCin}`,
+        updatePayload,
+      );
       setData(response.data);
       setSuccess("Case details updated successfully");
       applyCaseToForm(response.data);
@@ -128,7 +153,14 @@ export default function CasePage() {
   };
 
   const scheduleHearing = async () => {
+    if (data?.status === "CLOSED") {
+      setSuccess("");
+      setError("Cannot schedule hearings for a closed case");
+      return;
+    }
+
     if (!hearingDate) {
+      setSuccess("");
       setError("Select a hearing date");
       return;
     }
@@ -139,7 +171,7 @@ export default function CasePage() {
       setSuccess("");
 
       const response = await API.post<Hearing>("/cases/hearings", {
-        cin,
+        cin: normalizedCin,
         hearingDate,
         courtSlot,
       });
@@ -158,12 +190,20 @@ export default function CasePage() {
   };
 
   const adjourn = async () => {
+    if (data?.status === "CLOSED") {
+      setSuccess("");
+      setError("Closed cases cannot be adjourned");
+      return;
+    }
+
     if (!hearingId || Number.isNaN(Number(hearingId))) {
+      setSuccess("");
       setError("Enter a valid hearing ID");
       return;
     }
 
     if (!newHearingDate) {
+      setSuccess("");
       setError("Select the new hearing date");
       return;
     }
@@ -176,6 +216,7 @@ export default function CasePage() {
     ].filter(Boolean);
 
     if (reasonParts.length === 0) {
+      setSuccess("");
       setError("Enter an adjournment reason or proceedings summary");
       return;
     }
@@ -206,7 +247,14 @@ export default function CasePage() {
   };
 
   const closeCase = async () => {
+    if (data?.status === "CLOSED") {
+      setSuccess("");
+      setError("Case is already closed");
+      return;
+    }
+
     if (!judgmentSummary.trim()) {
+      setSuccess("");
       setError("Enter judgment summary before closing the case");
       return;
     }
@@ -216,7 +264,7 @@ export default function CasePage() {
       setError("");
       setSuccess("");
 
-      const response = await API.post<Case>(`/cases/${cin}/close`, {
+      const response = await API.post<Case>(`/cases/${normalizedCin}/close`, {
         judgmentSummary: judgmentSummary.trim(),
       });
 
@@ -238,7 +286,7 @@ export default function CasePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">{cin}</h1>
+        <h1 className="text-2xl font-semibold">{normalizedCin}</h1>
         <p className="text-sm text-gray-500">UC-02/03/04/05: Case operations</p>
       </div>
 

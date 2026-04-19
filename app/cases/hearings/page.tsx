@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { API, getApiErrorMessage } from "@/lib/api";
+import { API, getApiErrorMessage, getApiErrorStatus } from "@/lib/api";
 import type { Case } from "@/types/case";
 import { getLeadPart } from "@/lib/case-details";
 
@@ -70,6 +70,7 @@ function caseMatchesDate(caseItem: Case, selectedDate: string) {
 export default function HearingsByDatePage() {
   const [date, setDate] = useState("");
   const [rows, setRows] = useState<HearingRow[]>([]);
+  const [hasSearched, setHasSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
@@ -80,7 +81,9 @@ export default function HearingsByDatePage() {
       return;
     }
 
+    setHasSearched(true);
     setLoading(true);
+    setRows([]);
     setError("");
     setNote("");
 
@@ -90,6 +93,7 @@ export default function HearingsByDatePage() {
         `/cases/hearings?hearingDate=${date}`,
         `/cases/hearings/${date}`,
       ];
+      let lastProbeError: unknown = null;
 
       for (const endpoint of endpointCandidates) {
         try {
@@ -103,13 +107,25 @@ export default function HearingsByDatePage() {
             .filter((item): item is HearingRow => item !== null)
             .filter((item) => item.hearingDate.startsWith(date));
 
-          if (normalized.length > 0) {
-            setRows(normalized);
-            setNote(`Loaded from ${endpoint}`);
-            return;
+          setRows(normalized);
+          setNote(
+            normalized.length > 0
+              ? `Loaded from ${endpoint}`
+              : `No hearing records returned from ${endpoint} for the selected date`,
+          );
+          return;
+        } catch (probeError) {
+          const status = getApiErrorStatus(probeError);
+
+          if (
+            status === 401 ||
+            status === 403 ||
+            (typeof status === "number" && status >= 500)
+          ) {
+            throw probeError;
           }
-        } catch {
-          // Try the next endpoint signature.
+
+          lastProbeError = probeError;
         }
       }
 
@@ -128,11 +144,26 @@ export default function HearingsByDatePage() {
       setNote(
         fallbackRows.length > 0
           ? "Loaded from available case metadata"
-          : "No hearing-list found in backend for this date",
+          : "No hearing-list endpoint was found and no pending-case metadata matches this date",
       );
+
+      if (lastProbeError && fallbackRows.length === 0) {
+        const probeMessage = getApiErrorMessage(lastProbeError, "");
+
+        if (probeMessage) {
+          setNote(
+            (current) => `${current}. Endpoint probe detail: ${probeMessage}`,
+          );
+        }
+      }
     } catch (loadError) {
       setRows([]);
-      setError(getApiErrorMessage(loadError, "Unable to load hearings"));
+      setError(
+        getApiErrorMessage(
+          loadError,
+          "Unable to load hearings for the selected date",
+        ),
+      );
     } finally {
       setLoading(false);
     }
@@ -154,7 +185,11 @@ export default function HearingsByDatePage() {
             type="date"
             className="w-full border rounded p-2"
             value={date}
-            onChange={(event) => setDate(event.target.value)}
+            onChange={(event) => {
+              setDate(event.target.value);
+              setError("");
+              setNote("");
+            }}
           />
         </label>
 
@@ -171,7 +206,11 @@ export default function HearingsByDatePage() {
       </div>
 
       <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
-        {rows.length === 0 ? (
+        {!hasSearched ? (
+          <p className="p-4 text-sm text-gray-600">
+            Select a hearing date and click Find Hearings.
+          </p>
+        ) : rows.length === 0 ? (
           <p className="p-4 text-sm text-gray-600">
             No hearing records for this date.
           </p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { getApiErrorMessage } from "@/lib/api";
+import { getApiErrorMessage, getApiErrorStatus } from "@/lib/api";
 import { login } from "@/lib/auth";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -14,6 +14,11 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  const switchMode = (nextMode: "userId" | "name") => {
+    setMode(nextMode);
+    setError("");
+  };
+
   const handleLogin = async () => {
     if (!password) {
       setError("Enter your password");
@@ -22,6 +27,16 @@ export default function Login() {
 
     if (mode === "userId" && !userId) {
       setError("Enter your user ID");
+      return;
+    }
+
+    const numericUserId = Number(userId);
+
+    if (
+      mode === "userId" &&
+      (!Number.isInteger(numericUserId) || numericUserId <= 0)
+    ) {
+      setError("Enter a valid numeric user ID");
       return;
     }
 
@@ -36,7 +51,7 @@ export default function Login() {
 
       if (mode === "userId") {
         await login({
-          userId: Number(userId),
+          userId: numericUserId,
           password,
         });
       } else {
@@ -48,7 +63,15 @@ export default function Login() {
 
       router.replace("/");
     } catch (loginError) {
-      setError(getApiErrorMessage(loginError, "Invalid credentials"));
+      const statusCode = getApiErrorStatus(loginError);
+
+      if (statusCode === 401 || statusCode === 403) {
+        setError(
+          "Invalid credentials. Check your login details and try again.",
+        );
+      } else {
+        setError(getApiErrorMessage(loginError, "Unable to login right now"));
+      }
     } finally {
       setLoading(false);
     }
@@ -61,7 +84,7 @@ export default function Login() {
 
         <div className="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1">
           <button
-            onClick={() => setMode("userId")}
+            onClick={() => switchMode("userId")}
             className={`rounded-md py-1.5 text-sm ${
               mode === "userId" ? "bg-white shadow" : "text-gray-600"
             }`}
@@ -70,7 +93,7 @@ export default function Login() {
           </button>
 
           <button
-            onClick={() => setMode("name")}
+            onClick={() => switchMode("name")}
             className={`rounded-md py-1.5 text-sm ${
               mode === "name" ? "bg-white shadow" : "text-gray-600"
             }`}
@@ -85,14 +108,20 @@ export default function Login() {
             placeholder="User ID"
             type="number"
             value={userId}
-            onChange={(event) => setUserId(event.target.value)}
+            onChange={(event) => {
+              setUserId(event.target.value);
+              setError("");
+            }}
           />
         ) : (
           <input
             className="w-full border p-2 rounded"
             placeholder="Username"
             value={name}
-            onChange={(event) => setName(event.target.value)}
+            onChange={(event) => {
+              setName(event.target.value);
+              setError("");
+            }}
           />
         )}
 
@@ -101,7 +130,10 @@ export default function Login() {
           placeholder="Password"
           type="password"
           value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          onChange={(event) => {
+            setPassword(event.target.value);
+            setError("");
+          }}
         />
 
         {error && <p className="text-sm text-red-600">{error}</p>}

@@ -11,22 +11,51 @@ export default function PendingCases() {
   const [cases, setCases] = useState<Case[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
-    API.get("/cases/pending")
-      .then((res) => {
-        const sortedCases = [...res.data].sort((first, second) =>
+    let isMounted = true;
+
+    const loadCases = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const response = await API.get<Case[]>("/cases/pending");
+        const list = Array.isArray(response.data) ? response.data : [];
+        const sortedCases = [...list].sort((first, second) =>
           first.cin.localeCompare(second.cin),
         );
+
+        if (!isMounted) {
+          return;
+        }
+
         setCases(sortedCases);
-      })
-      .catch((fetchError) => {
+      } catch (fetchError) {
+        if (!isMounted) {
+          return;
+        }
+
+        setCases([]);
         setError(
           getApiErrorMessage(fetchError, "Unable to load pending cases"),
         );
-      })
-      .finally(() => setLoading(false));
-  }, []);
+      } finally {
+        if (!isMounted) {
+          return;
+        }
+
+        setLoading(false);
+      }
+    };
+
+    void loadCases();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [retryCount]);
 
   return (
     <div className="space-y-6">
@@ -41,7 +70,15 @@ export default function PendingCases() {
         {loading ? (
           <p className="p-6 text-sm text-gray-500">Loading cases...</p>
         ) : error ? (
-          <p className="p-6 text-sm text-red-600">{error}</p>
+          <div className="p-6 space-y-3">
+            <p className="text-sm text-red-600">{error}</p>
+            <button
+              onClick={() => setRetryCount((value) => value + 1)}
+              className="rounded border px-3 py-1.5 text-sm"
+            >
+              Retry
+            </button>
+          </div>
         ) : cases.length === 0 ? (
           <p className="p-6 text-sm text-gray-500">No pending cases</p>
         ) : (

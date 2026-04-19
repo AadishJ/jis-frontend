@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { getApiErrorMessage } from "@/lib/api";
-import { getUser } from "@/lib/auth";
+import { getUserSession } from "@/lib/auth";
 import {
   buildCreateCasePayload,
   type CaseRegistrationForm,
@@ -34,24 +34,41 @@ export default function CreateCase() {
   const [success, setSuccess] = useState("");
   const [createdCin, setCreatedCin] = useState("");
   const [checkingUser, setCheckingUser] = useState(true);
+  const [authError, setAuthError] = useState("");
   const [isRegistrar, setIsRegistrar] = useState(false);
   const [userId, setUserId] = useState<number | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
+  const [authRetryCount, setAuthRetryCount] = useState(0);
   const router = useRouter();
 
   useEffect(() => {
     let isMounted = true;
 
     const loadUser = async () => {
-      const user = await getUser();
+      const session = await getUserSession();
 
       if (!isMounted) {
         return;
       }
 
-      const registrar = user?.role === "REGISTRAR";
+      if (session.errorMessage) {
+        setAuthError(session.errorMessage);
+        setIsRegistrar(false);
+        setUserId(undefined);
+        setCheckingUser(false);
+        return;
+      }
+
+      setAuthError("");
+
+      if (!session.user) {
+        router.replace("/login");
+        return;
+      }
+
+      const registrar = session.user.role === "REGISTRAR";
       setIsRegistrar(registrar);
-      setUserId(user?.userId);
+      setUserId(session.user.userId);
       setCheckingUser(false);
     };
 
@@ -60,7 +77,7 @@ export default function CreateCase() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [authRetryCount, router]);
 
   const updateForm = (field: keyof CaseRegistrationForm, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -85,6 +102,14 @@ export default function CreateCase() {
     const firstMissing = requiredFields.find(([field]) => !form[field].trim());
 
     if (!firstMissing) {
+      if (form.offenseDate > form.arrestDate) {
+        return "Date of arrest cannot be earlier than date of offense";
+      }
+
+      if (form.expectedCompletionDate < form.trialStartDate) {
+        return "Expected completion date cannot be earlier than trial start date";
+      }
+
       return "";
     }
 
@@ -120,6 +145,34 @@ export default function CreateCase() {
 
   if (checkingUser) {
     return <p className="text-sm text-gray-600">Verifying role...</p>;
+  }
+
+  if (authError) {
+    return (
+      <div className="rounded-xl border bg-white p-6 max-w-2xl space-y-3">
+        <h1 className="text-xl font-semibold">Create Case</h1>
+        <p className="text-sm text-red-600">{authError}</p>
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setCheckingUser(true);
+              setAuthRetryCount((value) => value + 1);
+            }}
+            className="rounded bg-blue-600 px-4 py-2 text-white"
+          >
+            Retry Session Check
+          </button>
+
+          <button
+            onClick={() => router.push("/login")}
+            className="rounded border px-4 py-2"
+          >
+            Go To Login
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (!isRegistrar) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { getUser } from "@/lib/auth";
+import { getUserSession } from "@/lib/auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -9,21 +9,31 @@ export default function Home() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
 
     const loadUser = async () => {
-      const user = await getUser();
+      const session = await getUserSession();
 
       if (!isMounted) {
         return;
       }
 
-      if (!user) {
+      if (session.errorMessage) {
+        setError(session.errorMessage);
+        setRole(null);
+        setLoading(false);
+        return;
+      }
+
+      if (!session.user) {
         router.replace("/login");
       } else {
-        setRole(user.role);
+        setError("");
+        setRole(session.user.role);
       }
 
       setLoading(false);
@@ -34,7 +44,37 @@ export default function Home() {
     return () => {
       isMounted = false;
     };
-  }, [router]);
+  }, [retryCount, router]);
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full p-6">
+        <div className="w-full max-w-md rounded-xl border bg-white p-6 shadow-sm space-y-3">
+          <h1 className="text-lg font-semibold">Dashboard Unavailable</h1>
+          <p className="text-sm text-red-600">{error}</p>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                setLoading(true);
+                setRetryCount((value) => value + 1);
+              }}
+              className="rounded bg-blue-600 px-4 py-2 text-white"
+            >
+              Retry
+            </button>
+
+            <button
+              onClick={() => router.replace("/login")}
+              className="rounded border px-4 py-2"
+            >
+              Go To Login
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading || !role) {
     return (
